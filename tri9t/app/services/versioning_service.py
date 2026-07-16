@@ -125,6 +125,13 @@ def create_new_version(
     old_nodes = [_node_to_dict(n) for n in old_nodes_orm]
     old_pmap = _parent_heading_map(db, document_id)
 
+    # Build parent heading map for new nodes from parsed_nodes
+    new_node_map = {pn.id: pn for pn in parsed_nodes}
+    new_parent_heading: dict[str, str] = {}
+    for pn in parsed_nodes:
+        if pn.parent_id and pn.parent_id in new_node_map:
+            new_parent_heading[pn.id] = new_node_map[pn.parent_id].heading
+
     # Prepare new node dicts for matching
     new_node_dicts: list[dict] = []
     for pn in parsed_nodes:
@@ -136,7 +143,7 @@ def create_new_version(
                 "parent_id": pn.parent_id,
                 "level": pn.level,
                 "content_hash": compute_content_hash(pn.heading, pn.body_text),
-                "_parent_heading": "",  # will be resolved after tree build
+                "_parent_heading": new_parent_heading.get(pn.id, ""),
             }
         )
 

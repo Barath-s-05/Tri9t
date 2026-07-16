@@ -411,3 +411,125 @@ class TestScoreComputation:
         )
         score = _compute_match_score(cand, "Emergency", "5.3", "Safety", 1)
         assert score < MATCH_THRESHOLD
+
+
+# ── Real v1→v2 scenario ────────────────────────────────────────────
+
+
+class TestRealVersionMatching:
+    """Tests that mirror the actual create_new_version flow.
+
+    Old nodes come from DB with logical_node_id set (as v1 save now does).
+    New nodes have _parent_heading resolved from the parsed tree.
+    old_parent_map is populated (non-empty for child nodes).
+    """
+
+    def test_identical_nodes_with_parent_map_match(self) -> None:
+        """Identical nodes should match even when parent map is populated."""
+        old_parent_id = "old-parent-uuid"
+        old_lid = "logical-aaa"
+
+        old = [
+            {
+                "id": "old-0",
+                "heading": "1. Introduction",
+                "section_number": "1",
+                "parent_id": None,
+                "level": 1,
+                "content_hash": "h0",
+                "logical_node_id": "log-0",
+            },
+            {
+                "id": "old-1",
+                "heading": "1.2 Battery",
+                "section_number": "1.2",
+                "parent_id": old_parent_id,
+                "level": 2,
+                "content_hash": "abc",
+                "logical_node_id": old_lid,
+            },
+        ]
+        new = [
+            {
+                "id": "new-0",
+                "heading": "1. Introduction",
+                "section_number": "1",
+                "parent_id": None,
+                "level": 1,
+                "content_hash": "h0",
+                "_parent_heading": "",
+            },
+            {
+                "id": "new-1",
+                "heading": "1.2 Battery",
+                "section_number": "1.2",
+                "parent_id": "new-parent-uuid",
+                "level": 2,
+                "content_hash": "abc",
+                "_parent_heading": "1. Introduction",
+            },
+        ]
+
+        old_parent_map = {
+            "old-1": "1. Introduction",  # old child node has parent heading
+        }
+
+        results = match_nodes(old, new, old_parent_map)
+        assert len(results) == 2
+
+        # Root node should match (score 1.0)
+        root_result = [r for r in results if r.new_node_id == "new-0"][0]
+        assert root_result.is_new is False
+
+        # Child node should match (score ≥ 0.80)
+        child_result = [r for r in results if r.new_node_id == "new-1"][0]
+        assert child_result.is_new is False
+        assert child_result.logical_node_id == old_lid
+        assert child_result.score >= 0.55
+
+    def test_all_new_nodes_match_when_headings_identical(self) -> None:
+        """All nodes match when headings, levels, and sections are identical."""
+        old = [
+            {
+                "id": "old-1",
+                "heading": "1. Overview",
+                "section_number": "1",
+                "parent_id": None,
+                "level": 1,
+                "content_hash": "h1",
+                "logical_node_id": "l1",
+            },
+            {
+                "id": "old-2",
+                "heading": "2. Safety",
+                "section_number": "2",
+                "parent_id": None,
+                "level": 1,
+                "content_hash": "h2",
+                "logical_node_id": "l2",
+            },
+        ]
+        new = [
+            {
+                "id": "new-1",
+                "heading": "1. Overview",
+                "section_number": "1",
+                "parent_id": None,
+                "level": 1,
+                "content_hash": "h1-new",
+                "_parent_heading": "",
+            },
+            {
+                "id": "new-2",
+                "heading": "2. Safety",
+                "section_number": "2",
+                "parent_id": None,
+                "level": 1,
+                "content_hash": "h2-new",
+                "_parent_heading": "",
+            },
+        ]
+
+        results = match_nodes(old, new, old_parent_map={})
+        matched = [r for r in results if not r.is_new]
+        assert len(matched) == 2
