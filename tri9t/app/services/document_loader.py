@@ -57,7 +57,9 @@ def save_document(
         db_node = Node(
             id=parsed_node.id,
             document_id=doc_id,
+            version_id=version_id,
             parent_id=parsed_node.parent_id,
+            logical_node_id=str(uuid4()),
             heading=parsed_node.heading,
             level=parsed_node.level,
             body_text=parsed_node.body_text,
