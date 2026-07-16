@@ -32,3 +32,5 @@ class Node(Base, TimestampMixin):
     section_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     node_type: Mapped[str] = mapped_column(String(64), nullable=False, default="section")
+    change_status: Mapped[str | None] = mapped_column(String(32), nullable=True, default="unchanged")
+    impact_level: Mapped[str | None] = mapped_column(String(32), nullable=True)
