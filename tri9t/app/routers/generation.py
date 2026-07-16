@@ -113,9 +113,9 @@ class GenerationHistoryEntry(BaseModel):
 class GenerationHistoryResponse(BaseModel):
     """Paginated history response."""
 
-    generations: list[dict] = Field(
+    items: list[dict] = Field(
         ...,
-        description="List of generation records",
+        description="Generation records for this page",
     )
     total: int = Field(
         ...,
@@ -328,7 +328,7 @@ async def history(
     pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
 
     return GenerationHistoryResponse(
-        generations=result["generations"],
+        items=result["generations"],
         total=total,
         page=page,
         limit=limit,
@@ -423,7 +423,7 @@ async def node_generations(
     pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
 
     return GenerationHistoryResponse(
-        generations=result["generations"],
+        items=result["generations"],
         total=total,
         page=page,
         limit=limit,
@@ -475,7 +475,7 @@ async def selection_generations(
     pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
 
     return GenerationHistoryResponse(
-        generations=result["generations"],
+        items=result["generations"],
         total=total,
         page=page,
         limit=limit,

@@ -95,13 +95,13 @@ class TestBrowseAPI:
     def test_list_documents_empty(self, client):
         resp = client.get("/documents")
         assert resp.status_code == 200
-        assert resp.json()["documents"] == []
+        assert resp.json()["items"] == []
 
     def test_list_documents(self, client, db_session):
         doc = _seed_document(db_session)
         resp = client.get("/documents")
         assert resp.status_code == 200
-        assert len(resp.json()["documents"]) == 1
+        assert len(resp.json()["items"]) == 1
 
     def test_get_document_not_found(self, client):
         resp = client.get(f"/documents/{_NONEXISTENT_UUID}")
@@ -170,8 +170,8 @@ class TestSearchAPI:
         _seed_node(db_session, doc.id, vid, "Safety Manual", 1)
         resp = client.get("/search", params={"query": "Safety Manual"})
         assert resp.status_code == 200
-        assert len(resp.json()["results"]) == 1
-        assert resp.json()["results"][0]["match_type"] == "exact_heading"
+        assert len(resp.json()["items"]) == 1
+        assert resp.json()["items"][0]["match_type"] == "exact_heading"
 
     def test_search_body_text(self, client, db_session):
         doc = _seed_document(db_session)
@@ -179,7 +179,7 @@ class TestSearchAPI:
         _seed_node(db_session, doc.id, vid, "Details", 2, body_text="voltage is 12V")
         resp = client.get("/search", params={"query": "12V"})
         assert resp.status_code == 200
-        assert len(resp.json()["results"]) == 1
+        assert len(resp.json()["items"]) == 1
 
     def test_search_section_number(self, client, db_session):
         doc = _seed_document(db_session)
@@ -187,7 +187,7 @@ class TestSearchAPI:
         _seed_node(db_session, doc.id, vid, "Appendix", 2, section_number="A.1")
         resp = client.get("/search", params={"query": "A.1"})
         assert resp.status_code == 200
-        assert len(resp.json()["results"]) == 1
+        assert len(resp.json()["items"]) == 1
 
     def test_search_version_scoped(self, client, db_session):
         doc = _seed_document(db_session)
@@ -197,9 +197,9 @@ class TestSearchAPI:
         _seed_node(db_session, doc.id, vid2, "Same Heading", 1)
         resp = client.get("/search", params={"query": "Same Heading", "version_id": vid1})
         assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 1
-        assert results[0]["version_id"] == vid1
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["version_id"] == vid1
 
     def test_search_impact_filtered(self, client, db_session):
         doc = _seed_document(db_session)
@@ -208,9 +208,9 @@ class TestSearchAPI:
         _seed_node(db_session, doc.id, vid, "General", 1, impact_level="low")
         resp = client.get("/search", params={"query": "Safety", "impact_level": "critical"})
         assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 1
-        assert results[0]["impact_level"] == "critical"
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["impact_level"] == "critical"
 
     def test_search_empty_query_rejected(self, client):
         resp = client.get("/search", params={"query": ""})
@@ -264,7 +264,7 @@ class TestSelectionAPI:
         })
         resp = client.get("/selections/")
         assert resp.status_code == 200
-        assert len(resp.json()["selections"]) == 1
+        assert len(resp.json()["items"]) == 1
 
     def test_delete_selection(self, client, db_session):
         doc = _seed_document(db_session)
