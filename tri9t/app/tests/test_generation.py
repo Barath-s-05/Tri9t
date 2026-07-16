@@ -662,15 +662,17 @@ class TestGenerationAPI:
             "selection_id": "s1",
             "test_cases": [],
             "provider": "groq",
+            "staleness": {"status": "CURRENT"},
         }
         with patch(
-            "tri9t.app.routers.generation.get_generation",
+            "tri9t.app.routers.generation.get_generation_with_staleness",
             return_value=fake_doc,
         ):
             client = TestClient(app)
             resp = client.get("/generation/g1")
             assert resp.status_code == 200
             assert resp.json()["provider"] == "groq"
+            assert "staleness" in resp.json()
 
     def test_generation_history(self):
         from fastapi.testclient import TestClient

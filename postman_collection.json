@@ -1,0 +1,491 @@
+{
+  "info": {
+    "name": "Tri9T Document Intelligence API",
+    "description": "Full workflow collection: Ingest → Browse → Search → Selection → Generate → Retrieve with Staleness",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "documentId",
+      "value": ""
+    },
+    {
+      "key": "versionId",
+      "value": ""
+    },
+    {
+      "key": "nodeId",
+      "value": ""
+    },
+    {
+      "key": "selectionId",
+      "value": ""
+    },
+    {
+      "key": "generationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health Check",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('SQLite is connected', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('healthy');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Ingest Document",
+      "item": [
+        {
+          "name": "POST /ingest/documents",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ingest/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["ingest", "documents"]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "path/to/your/document.pdf"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns document ID', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.document_id).to.not.be.empty;",
+                  "  pm.collectionVariables.set('documentId', json.document_id);",
+                  "});",
+                  "pm.test('Returns version ID', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.version_id).to.not.be.empty;",
+                  "  pm.collectionVariables.set('versionId', json.version_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Browse Document",
+      "item": [
+        {
+          "name": "GET /browse/documents",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/browse/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["browse", "documents"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns list of documents', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array');",
+                  "  pm.expect(json.length).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /browse/documents/{documentId}",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/browse/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["browse", "documents", "{{documentId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns versions', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.versions).to.be.an('array');",
+                  "  pm.expect(json.versions.length).to.be.above(0);",
+                  "  pm.collectionVariables.set('versionId', json.versions[0].id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /browse/tree/{versionId}",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/browse/tree/{{versionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["browse", "tree", "{{versionId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns tree nodes', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array');",
+                  "  pm.expect(json.length).to.be.above(0);",
+                  "  // Save first node ID for later use",
+                  "  if (json.length > 0) {",
+                  "    pm.collectionVariables.set('nodeId', json[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Search",
+      "item": [
+        {
+          "name": "GET /retrieval/search",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/retrieval/search?q=safety&version_id={{versionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["retrieval", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "safety"
+                },
+                {
+                  "key": "version_id",
+                  "value": "{{versionId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns results', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.results).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Create Selection",
+      "item": [
+        {
+          "name": "POST /selections/",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/selections/",
+              "host": ["{{baseUrl}}"],
+              "path": ["selections", ""]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selection_name\": \"Safety Sections QA\",\n  \"description\": \"Selection for generating QA test cases on safety-critical sections\",\n  \"document_version_id\": \"{{versionId}}\",\n  \"node_ids\": [\"{{nodeId}}\"]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns selection ID', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.id).to.not.be.empty;",
+                  "  pm.collectionVariables.set('selectionId', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 - Generate QA Test Cases",
+      "item": [
+        {
+          "name": "POST /generate",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["generate"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selection_id\": \"{{selectionId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns generation ID', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.generation_id).to.not.be.empty;",
+                  "  pm.collectionVariables.set('generationId', json.generation_id);",
+                  "});",
+                  "pm.test('Returns test cases', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.test_cases).to.be.an('array');",
+                  "  pm.expect(json.test_cases.length).to.be.above(0);",
+                  "});",
+                  "pm.test('Test cases have required fields', function () {",
+                  "  var json = pm.response.json();",
+                  "  json.test_cases.forEach(function(tc) {",
+                  "    pm.expect(tc).to.have.property('title');",
+                  "    pm.expect(tc).to.have.property('priority');",
+                  "    pm.expect(tc).to.have.property('steps');",
+                  "    pm.expect(tc).to.have.property('expected_result');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 - Retrieve with Staleness",
+      "item": [
+        {
+          "name": "GET /generation/{generationId}",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/generation/{{generationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["generation", "{{generationId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns staleness info', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.staleness).to.not.be.empty;",
+                  "  pm.expect(json.staleness.status).to.be.oneOf(['CURRENT', 'STALE', 'PARTIALLY_STALE', 'UNKNOWN']);",
+                  "});",
+                  "pm.test('Staleness has recommendation', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.staleness.recommendation).to.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /node/{nodeId}/generations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/node/{{nodeId}}/generations",
+              "host": ["{{baseUrl}}"],
+              "path": ["node", "{{nodeId}}", "generations"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns generations list', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.generations).to.be.an('array');",
+                  "  pm.expect(json.total).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /selection/{selectionId}/generations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/selection/{{selectionId}}/generations",
+              "host": ["{{baseUrl}}"],
+              "path": ["selection", "{{selectionId}}", "generations"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns generations for selection', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.generations).to.be.an('array');",
+                  "  pm.expect(json.total).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08 - Generation History",
+      "item": [
+        {
+          "name": "GET /generation/history",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/generation/history?limit=10&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["generation", "history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns paginated history', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.generations).to.be.an('array');",
+                  "  pm.expect(json.total).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09 - Cleanup",
+      "item": [
+        {
+          "name": "DELETE /selections/{selectionId}",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/selections/{{selectionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["selections", "{{selectionId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 or 404', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

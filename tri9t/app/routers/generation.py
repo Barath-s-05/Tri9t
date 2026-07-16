@@ -1,7 +1,8 @@
 """QA generation API endpoints.
 
 Thin layer that parses requests and delegates to
-``generation_service``.  No business logic lives here.
+``generation_service`` and ``retrieval_service``.
+No business logic lives here.
 """
 
 from __future__ import annotations
@@ -18,6 +19,11 @@ from tri9t.app.services.generation_service import (
     generate_test_cases,
     get_generation,
     get_generation_history,
+)
+from tri9t.app.services.retrieval_service import (
+    get_generation_with_staleness,
+    get_generations_for_node,
+    get_generations_for_selection,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,11 +110,42 @@ async def history(
 
 
 @router.get("/generation/{generation_id}")
-async def retrieve_generation(generation_id: str) -> dict:
-    """Retrieve a single generation by its ID."""
-    doc = get_generation(generation_id)
+async def retrieve_generation(
+    generation_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Retrieve a single generation with staleness information."""
+    doc = get_generation_with_staleness(db, generation_id)
     if doc is None:
         raise HTTPException(
             status_code=404, detail="Generation not found"
         )
     return doc
+
+
+@router.get("/node/{node_id}/generations")
+async def node_generations(
+    node_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    """Return all generations that included a specific node."""
+    return get_generations_for_node(
+        node_id=node_id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/selection/{selection_id}/generations")
+async def selection_generations(
+    selection_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    """Return all generations for a specific selection."""
+    return get_generations_for_selection(
+        selection_id=selection_id,
+        limit=limit,
+        offset=offset,
+    )
