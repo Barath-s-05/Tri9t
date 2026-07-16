@@ -481,7 +481,7 @@ class TestNewEndpoints:
             return_value=fake_doc,
         ):
             client = TestClient(app)
-            resp = client.get("/generation/g1")
+            resp = client.get("/generation/550e8400-e29b-41d4-a716-446655440000")
             assert resp.status_code == 200
             assert "staleness" in resp.json()
             assert resp.json()["staleness"]["status"] == "CURRENT"
@@ -498,7 +498,7 @@ class TestNewEndpoints:
             return_value=fake_result,
         ):
             client = TestClient(app)
-            resp = client.get("/node/n1/generations")
+            resp = client.get("/node/550e8400-e29b-41d4-a716-446655440001/generations")
             assert resp.status_code == 200
             assert resp.json()["total"] == 1
 
@@ -512,7 +512,7 @@ class TestNewEndpoints:
             return_value=fake_result,
         ):
             client = TestClient(app)
-            resp = client.get("/selection/s1/generations")
+            resp = client.get("/selection/550e8400-e29b-41d4-a716-446655440002/generations")
             assert resp.status_code == 200
             assert resp.json()["total"] == 2
 

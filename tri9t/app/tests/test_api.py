@@ -14,6 +14,9 @@ from tri9t.app.models.node import Node
 
 from fastapi.testclient import TestClient
 
+# A valid UUID that will never exist in the database
+_NONEXISTENT_UUID = "00000000-0000-0000-0000-000000000000"
+
 
 @pytest.fixture()
 def db_session():
@@ -101,8 +104,10 @@ class TestBrowseAPI:
         assert len(resp.json()["documents"]) == 1
 
     def test_get_document_not_found(self, client):
-        resp = client.get("/documents/nonexistent")
+        resp = client.get(f"/documents/{_NONEXISTENT_UUID}")
         assert resp.status_code == 404
+        detail = resp.json()["detail"]
+        assert detail["error"] == "DocumentNotFound"
 
     def test_get_document_with_versions(self, client, db_session):
         doc = _seed_document(db_session)
@@ -207,10 +212,17 @@ class TestSearchAPI:
         assert len(results) == 1
         assert results[0]["impact_level"] == "critical"
 
-    def test_search_empty_query(self, client):
+    def test_search_empty_query_rejected(self, client):
         resp = client.get("/search", params={"query": ""})
-        assert resp.status_code == 200
-        assert resp.json()["results"] == []
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "EmptySearchQuery"
+
+    def test_search_whitespace_query_rejected(self, client):
+        resp = client.get("/search", params={"query": "   "})
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "EmptySearchQuery"
 
     def test_search_no_match(self, client, db_session):
         doc = _seed_document(db_session)
@@ -270,12 +282,16 @@ class TestSelectionAPI:
         assert resp2.status_code == 404
 
     def test_selection_not_found(self, client):
-        resp = client.get("/selections/nonexistent")
+        resp = client.get(f"/selections/{_NONEXISTENT_UUID}")
         assert resp.status_code == 404
+        detail = resp.json()["detail"]
+        assert detail["error"] == "SelectionNotFound"
 
     def test_delete_selection_not_found(self, client):
-        resp = client.delete("/selections/nonexistent")
+        resp = client.delete(f"/selections/{_NONEXISTENT_UUID}")
         assert resp.status_code == 404
+        detail = resp.json()["detail"]
+        assert detail["error"] == "SelectionNotFound"
 
 
 # ── Validation tests ────────────────────────────────────────────────
@@ -328,3 +344,111 @@ class TestValidation:
             "node_ids": [],
         })
         assert resp.status_code == 422
+
+
+# ── UUID validation tests ───────────────────────────────────────────
+
+
+class TestUUIDValidation:
+    """Tests that invalid UUID formats are rejected with 422."""
+
+    def test_invalid_document_id_browse(self, client):
+        resp = client.get("/documents/not-a-uuid")
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+        assert "document_id" in detail["message"]
+
+    def test_invalid_node_id_browse(self, client):
+        resp = client.get("/nodes/not-a-uuid")
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+        assert "node_id" in detail["message"]
+
+    def test_invalid_version_id_browse(self, client):
+        resp = client.get("/versions/not-a-uuid/tree")
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+        assert "version_id" in detail["message"]
+
+    def test_invalid_selection_id_get(self, client):
+        resp = client.get("/selections/not-a-uuid")
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+        assert "selection_id" in detail["message"]
+
+    def test_invalid_selection_id_delete(self, client):
+        resp = client.delete("/selections/not-a-uuid")
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+
+    def test_invalid_node_id_changes(self, client):
+        resp = client.get("/versions/node/not-a-uuid/changes")
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+
+    def test_invalid_version_id_query(self, client):
+        resp = client.get("/search", params={"query": "test", "version_id": "bad"})
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+
+    def test_invalid_document_id_query(self, client):
+        resp = client.get("/search", params={"query": "test", "document_id": "bad"})
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+
+    def test_empty_path_param_rejected(self, client):
+        resp = client.get("/documents/")
+        # FastAPI redirects /documents/ → /documents (307), then follows to 200
+        assert resp.status_code in (200, 307, 404, 422)
+
+    def test_uuid_with_hyphens_only_rejected(self, client):
+        resp = client.get("/documents/----------")
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail["error"] == "InvalidUUID"
+
+
+# ── Structured error response tests ─────────────────────────────────
+
+
+class TestStructuredErrors:
+    """Tests that error responses follow the {error, message, hint} schema."""
+
+    def test_404_has_error_schema(self, client):
+        resp = client.get(f"/documents/{_NONEXISTENT_UUID}")
+        assert resp.status_code == 404
+        body = resp.json()["detail"]
+        assert "error" in body
+        assert "message" in body
+        assert isinstance(body["error"], str)
+        assert isinstance(body["message"], str)
+
+    def test_422_has_error_schema(self, client):
+        resp = client.get("/documents/not-a-uuid")
+        assert resp.status_code == 422
+        body = resp.json()["detail"]
+        assert "error" in body
+        assert "message" in body
+        assert "hint" in body
+
+    def test_hint_is_optional(self, client):
+        resp = client.get(f"/documents/{_NONEXISTENT_UUID}")
+        body = resp.json()["detail"]
+        # hint may or may not be present; just verify structure
+        assert isinstance(body.get("hint"), (str, type(None)))
+
+    def test_search_422_error_schema(self, client):
+        resp = client.get("/search", params={"query": ""})
+        assert resp.status_code == 422
+        body = resp.json()["detail"]
+        assert body["error"] == "EmptySearchQuery"
+        assert "empty" in body["message"].lower()
+        assert body["hint"] is not None

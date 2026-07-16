@@ -5,34 +5,193 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from tri9t.app.db.database import get_db
+from tri9t.app.schemas.api import (
+    ERROR_RESPONSE_INVALID_UUID,
+    ErrorResponse,
+    validation_error,
+    validate_uuid,
+)
 from tri9t.app.services.search_service import search_nodes
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["retrieval"])
 
+# ---------------------------------------------------------------------------
+# Response models
+# ---------------------------------------------------------------------------
 
-@router.get("/search")
+
+class SearchResultItem(BaseModel):
+    """A single search result with relevance scoring."""
+
+    node_id: str = Field(..., examples=["550e8400-e29b-41d4-a716-446655440000"])
+    heading: str = Field(..., examples=["1.2 Battery Safety"])
+    level: int = Field(..., examples=[2])
+    section_number: str | None = Field(None, examples=["1.2"])
+    body_text: str = Field(..., examples=["Battery voltage must not exceed..."])
+    logical_node_id: str | None = Field(None)
+    version_id: str | None = Field(None)
+    document_id: str = Field(..., examples=["550e8400-..."])
+    content_hash: str = Field(..., examples=["abc123..."])
+    page_number: int | None = Field(None, examples=[5])
+    change_status: str | None = Field(None, examples=["modified"])
+    impact_level: str | None = Field(None, examples=["HIGH"])
+    score: float = Field(..., description="Relevance score (0.0-1.0)", examples=[0.85])
+    match_type: str = Field(
+        ...,
+        description="How the node matched the query",
+        examples=["exact_heading"],
+    )
+
+
+class SearchResponse(BaseModel):
+    """Response for the search endpoint."""
+
+    results: list[SearchResultItem] = Field(
+        ...,
+        description="Search results ordered by relevance score descending",
+    )
+    total: int = Field(
+        ...,
+        description="Number of results returned",
+        examples=[5],
+    )
+
+
+class EmptyQueryError(BaseModel):
+    """Error response for empty search queries."""
+
+    error: str = Field(..., examples=["EmptySearchQuery"])
+    message: str = Field(..., examples=["Search query cannot be empty."])
+    hint: str | None = Field(
+        None,
+        examples=["Provide a non-empty search query string."],
+    )
+
+
+# ---------------------------------------------------------------------------
+# OpenAPI response configs
+# ---------------------------------------------------------------------------
+
+_DOCS_422_EMPTY_QUERY: dict[int, dict] = {
+    422: {
+        "model": ErrorResponse,
+        "description": "Empty or whitespace-only search query",
+        "content": {
+            "application/json": {
+                "example": {
+                    "error": "EmptySearchQuery",
+                    "message": "Search query cannot be empty or whitespace-only.",
+                    "hint": "Provide a non-empty search query string.",
+                }
+            }
+        },
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/search",
+    response_model=SearchResponse,
+    summary="Search document nodes",
+    description=(
+        "Search across all document nodes using multi-factor relevance "
+        "scoring. Results are deduplicated by logical node ID and "
+        "returned in descending score order. Supports heading, body text, "
+        "and section number matching."
+    ),
+    response_description="Ranked search results with relevance scores.",
+    responses={
+        **ERROR_RESPONSE_INVALID_UUID,
+        **_DOCS_422_EMPTY_QUERY,
+    },
+)
 def search_document_nodes(
-    query: str = Query(..., description="Search query"),
-    version_id: str | None = Query(None, description="Restrict to version"),
-    document_id: str | None = Query(None, description="Restrict to document"),
-    impact_level: str | None = Query(None, description="Restrict to impact level"),
+    query: str = Query(
+        ...,
+        description="Search query string (at least 1 character). "
+        "Matches against headings, body text, and section numbers.",
+        examples=["battery safety"],
+    ),
+    version_id: str | None = Query(
+        None,
+        description="Restrict results to a specific document version UUID",
+        examples=["550e8400-e29b-41d4-a716-446655440000"],
+    ),
+    document_id: str | None = Query(
+        None,
+        description="Restrict results to a specific document UUID",
+        examples=["550e8400-e29b-41d4-a716-446655440000"],
+    ),
+    impact_level: str | None = Query(
+        None,
+        description="Restrict results to a specific impact level "
+        "(LOW, MEDIUM, HIGH, CRITICAL)",
+        examples=["HIGH"],
+    ),
     db: Session = Depends(get_db),
-) -> dict:
+) -> SearchResponse:
     """Search across document nodes.
 
-    Results are deduplicated by logical_node_id and returned in
+    Results are deduplicated by ``logical_node_id`` and returned in
     relevance-score order.
+
+    Args:
+        query: Non-empty search query string.
+        version_id: Optional version UUID to scope results.
+        document_id: Optional document UUID to scope results.
+        impact_level: Optional impact level filter.
+
+    Returns:
+        ``SearchResponse`` with ranked results and total count.
+
+    Raises:
+        422: If the query is empty/whitespace or a UUID parameter is invalid.
     """
+    if not query or not query.strip():
+        raise validation_error(
+            "EmptySearchQuery",
+            "Search query cannot be empty or whitespace-only.",
+            "Provide a non-empty search query string.",
+        )
+
+    if version_id is not None:
+        validate_uuid(version_id, "version_id")
+    if document_id is not None:
+        validate_uuid(document_id, "document_id")
+
+    if impact_level is not None:
+        valid_levels = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+        if impact_level.upper() not in valid_levels:
+            raise validation_error(
+                "InvalidImpactLevel",
+                f"'{impact_level}' is not a valid impact level.",
+                f"Use one of: {', '.join(sorted(valid_levels))}.",
+            )
+
     results = search_nodes(
         db,
-        query=query,
+        query=query.strip(),
         version_id=version_id,
         document_id=document_id,
         impact_level=impact_level,
     )
-    return {"results": results, "total": len(results)}
+
+    logger.info(
+        "Search '%s': %d results (version=%s, document=%s)",
+        query.strip(),
+        len(results),
+        version_id,
+        document_id,
+    )
+
+    return SearchResponse(results=results, total=len(results))
