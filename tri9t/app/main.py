@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from tri9t.app.core.config import settings
+from tri9t.app.middleware.timing import TimingMiddleware
 from tri9t.app.core.logging import setup_logging
 from tri9t.app.db.database import init_db
 from tri9t.app.routers import (
@@ -71,6 +72,8 @@ app = FastAPI(
         {"name": "retrieval", "description": "Full-text search across document nodes"},
     ],
 )
+
+app.add_middleware(TimingMiddleware)
 
 app.include_router(health.router)
 app.include_router(ingest.router)
