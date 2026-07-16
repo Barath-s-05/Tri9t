@@ -19,9 +19,10 @@ class Settings(BaseSettings):
     MONGO_URI: str = "mongodb://localhost:27017"
     MONGO_DB_NAME: str = "tri9t"
 
-    # LLM (placeholder for future stages)
-    LLM_API_KEY: str = ""
-    LLM_MODEL: str = ""
+    # Groq
+    GROQ_API_KEY: str = ""
+    MODEL_NAME: str = "llama-3.3-70b-versatile"
+    TEMPERATURE: float = 0.7
 
     # Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent

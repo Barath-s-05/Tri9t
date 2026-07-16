@@ -29,7 +29,18 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
     init_db()
     logger.info("Database tables created")
+
+    # Initialise MongoDB connection
+    from tri9t.app.db.mongo import close as mongo_close, ping as mongo_ping
+
+    if mongo_ping():
+        logger.info("MongoDB connected")
+    else:
+        logger.warning("MongoDB unreachable – generation features disabled")
+
     yield
+
+    mongo_close()
     logger.info("Shutting down %s", settings.APP_NAME)
 
 
