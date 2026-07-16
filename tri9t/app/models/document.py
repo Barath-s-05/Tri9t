@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import String
+from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tri9t.app.db.base import Base, TimestampMixin
@@ -31,3 +31,7 @@ class DocumentVersion(Base, TimestampMixin):
     document_id: Mapped[str] = mapped_column(String(36), nullable=False)
     version_number: Mapped[int] = mapped_column(nullable=False, default=1)
     label: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    is_latest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    uploaded_at: Mapped[str] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

@@ -16,6 +16,7 @@ from tri9t.app.routers import (
     ingest,
     retrieval,
     selection,
+    versions,
 )
 
 setup_logging()
@@ -45,3 +46,4 @@ app.include_router(browse.router)
 app.include_router(selection.router)
 app.include_router(generation.router)
 app.include_router(retrieval.router)
+app.include_router(versions.router)
