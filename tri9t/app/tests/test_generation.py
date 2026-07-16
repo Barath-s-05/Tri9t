@@ -597,7 +597,7 @@ class TestGenerationAPI:
             client = TestClient(app, raise_server_exceptions=False)
             resp = client.post(
                 "/generate",
-                json={"selection_id": "bad"},
+                json={"selection_id": "550e8400-e29b-41d4-a716-446655440099"},
             )
             assert resp.status_code == 404
 
@@ -625,7 +625,20 @@ class TestGenerationAPI:
                 {"title": "T2", "preconditions": "P", "steps": [], "expected_result": "E", "priority": "LOW", "traceability": []},
                 {"title": "T3", "preconditions": "P", "steps": [], "expected_result": "E", "priority": "LOW", "traceability": []},
             ],
-            "metadata": {"provider": "groq", "model": "m", "processing_time_ms": 100},
+            "metadata": {
+                "selection_id": "550e8400-e29b-41d4-a716-446655440002",
+                "version_id": "550e8400-e29b-41d4-a716-446655440003",
+                "prompt_version": "1.0",
+                "prompt_hash": "abc123",
+                "provider": "groq",
+                "model": "llama-3.3-70b-versatile",
+                "temperature": 0.7,
+                "generated_at": "2025-01-15T10:30:00Z",
+                "validation_status": "valid",
+                "retry_count": 0,
+                "response_hash": "def456",
+                "processing_time_ms": 100,
+            },
         }
 
         with patch(
@@ -634,7 +647,7 @@ class TestGenerationAPI:
         ) as mock_gen:
             mock_gen.return_value = fake_result
             client = TestClient(app)
-            resp = client.post("/generate", json={"selection_id": "s1"})
+            resp = client.post("/generate", json={"selection_id": "550e8400-e29b-41d4-a716-446655440002"})
             assert resp.status_code == 200
             body = resp.json()
             assert body["generation_id"] == "gen-123"
@@ -651,7 +664,7 @@ class TestGenerationAPI:
             return_value=None,
         ):
             client = TestClient(app, raise_server_exceptions=False)
-            resp = client.get("/generation/nonexistent")
+            resp = client.get("/generation/00000000-0000-0000-0000-000000000000")
             assert resp.status_code == 404
 
     def test_get_generation_found(self):
@@ -659,9 +672,8 @@ class TestGenerationAPI:
         from tri9t.app.main import app
 
         fake_doc = {
-            "selection_id": "s1",
-            "test_cases": [],
-            "provider": "groq",
+            "_id": "550e8400-e29b-41d4-a716-446655440000",
+            "test_cases": [{"title": "T1"}],
             "staleness": {"status": "CURRENT"},
         }
         with patch(
@@ -669,10 +681,10 @@ class TestGenerationAPI:
             return_value=fake_doc,
         ):
             client = TestClient(app)
-            resp = client.get("/generation/g1")
+            resp = client.get("/generation/550e8400-e29b-41d4-a716-446655440000")
             assert resp.status_code == 200
-            assert resp.json()["provider"] == "groq"
-            assert "staleness" in resp.json()
+            body = resp.json()
+            assert "staleness" in body
 
     def test_generation_history(self):
         from fastapi.testclient import TestClient
@@ -714,7 +726,7 @@ class TestGenerationAPI:
                 "No Groq API key configured"
             )
             client = TestClient(app, raise_server_exceptions=False)
-            resp = client.post("/generate", json={"selection_id": "s1"})
+            resp = client.post("/generate", json={"selection_id": "550e8400-e29b-41d4-a716-446655440002"})
             assert resp.status_code == 503
 
         app.dependency_overrides.clear()
