@@ -87,7 +87,7 @@ class TestDocumentPagination:
         assert body["limit"] == 20
         assert body["total"] == 0
         assert body["pages"] == 1
-        assert body["documents"] == []
+        assert body["items"] == []
 
     def test_documents_page_limit(self, client):
         db = SessionLocal()
@@ -102,7 +102,7 @@ class TestDocumentPagination:
         body = resp.json()
         assert body["total"] == 1
         assert body["limit"] == 1
-        assert len(body["documents"]) == 1
+        assert len(body["items"]) == 1
 
     def test_documents_page_beyond_total(self, client):
         db = SessionLocal()
@@ -116,7 +116,7 @@ class TestDocumentPagination:
         assert resp.status_code == 200
         body = resp.json()
         assert body["page"] == 5
-        assert body["documents"] == []
+        assert body["items"] == []
         assert body["total"] == 1
 
     def test_documents_limit_boundary(self, client):
@@ -145,7 +145,7 @@ class TestDocumentSorting:
 
         resp = client.get("/documents?sort=title&order=asc")
         assert resp.status_code == 200
-        titles = [d["title"] for d in resp.json()["documents"]]
+        titles = [d["title"] for d in resp.json()["items"]]
         assert titles == ["Alpha", "Zebra"]
 
     def test_sort_by_title_desc(self, client):
@@ -159,7 +159,7 @@ class TestDocumentSorting:
 
         resp = client.get("/documents?sort=title&order=desc")
         assert resp.status_code == 200
-        titles = [d["title"] for d in resp.json()["documents"]]
+        titles = [d["title"] for d in resp.json()["items"]]
         assert titles == ["Zebra", "Alpha"]
 
     def test_default_sort_by_created_at_desc(self, client):
@@ -182,7 +182,7 @@ class TestDocumentSorting:
         assert body["total"] == 2
         assert body["page"] == 1
         # Both docs returned; sort order depends on insertion (SQLite granularity)
-        titles = [d["title"] for d in body["documents"]]
+        titles = [d["title"] for d in body["items"]]
         assert set(titles) == {"First", "Second"}
 
 
@@ -206,7 +206,7 @@ class TestDocumentFiltering:
         assert resp.status_code == 200
         body = resp.json()
         assert body["total"] == 2
-        titles = [d["title"] for d in body["documents"]]
+        titles = [d["title"] for d in body["items"]]
         assert "Battery Safety Manual" in titles
         assert "Battery Test Report" in titles
         assert "Charging Protocol" not in titles
@@ -258,7 +258,7 @@ class TestSearchPagination:
         assert resp.status_code == 200
         body = resp.json()
         assert body["limit"] == 1
-        assert len(body["results"]) <= 1
+        assert len(body["items"]) <= 1
 
 
 # ===========================================================================

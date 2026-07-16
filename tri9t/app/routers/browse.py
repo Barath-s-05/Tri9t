@@ -47,9 +47,9 @@ class DocumentSummary(BaseModel):
 class DocumentListResponse(BaseModel):
     """Response for listing all documents."""
 
-    documents: list[DocumentSummary] = Field(
+    items: list[DocumentSummary] = Field(
         ...,
-        description="List of document summaries, ordered by creation date descending",
+        description="Document summaries for this page",
     )
     page: int = Field(..., description="Current page number", examples=[1])
     limit: int = Field(..., description="Items per page", examples=[20])
@@ -198,7 +198,7 @@ def browse_documents(
 
     logger.debug("Listed %d documents (page %d/%d)", len(page_docs), page, pages)
     return DocumentListResponse(
-        documents=page_docs,
+        items=page_docs,
         page=page,
         limit=limit,
         total=total,

@@ -68,6 +68,15 @@ app = FastAPI(
         "All UUIDs in path and query parameters are validated. "
         "Error responses follow a consistent `{error, message, hint}` structure."
     ),
+    contact={
+        "name": "Tri9T Engineering",
+        "url": "https://github.com/tri9t",
+        "email": "engineering@tri9t.dev",
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT",
+    },
     openapi_tags=[
         {"name": "health", "description": "Service health checks and system metrics"},
         {"name": "ingest", "description": "PDF upload and initial parsing"},
@@ -78,6 +87,10 @@ app = FastAPI(
         {"name": "retrieval", "description": "Full-text search across document nodes"},
         {"name": "metrics", "description": "System resource counts"},
     ],
+    external_docs={
+        "description": "Full project documentation",
+        "url": "https://github.com/tri9t/tri9t#readme",
+    },
 )
 
 

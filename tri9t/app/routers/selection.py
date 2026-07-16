@@ -82,9 +82,9 @@ class SelectionResponse(BaseModel):
 class SelectionListResponse(BaseModel):
     """Response for listing selections."""
 
-    selections: list[SelectionResponse] = Field(
+    items: list[SelectionResponse] = Field(
         ...,
-        description="List of selections ordered by creation date descending",
+        description="Selections for this page",
     )
     page: int = Field(..., description="Current page number", examples=[1])
     limit: int = Field(..., description="Items per page", examples=[20])
@@ -288,7 +288,7 @@ def list_selections(
     page_selections = selections[start : start + limit]
 
     return SelectionListResponse(
-        selections=page_selections,
+        items=page_selections,
         page=page,
         limit=limit,
         total=total,

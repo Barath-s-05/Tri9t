@@ -14,7 +14,7 @@ This API is designed to:
 - Generate QA test cases using an LLM
 - Detect stale generated outputs
 
-> **Stage 6** — All core features complete.
+> **Stage 7** — Production-ready. All core features + production quality complete.
 
 ## Architecture
 
@@ -177,6 +177,8 @@ pytest tri9t/app/tests/ -v
 
 ## API Endpoints
 
+All paginated list endpoints return `{items, page, limit, total, pages}`.
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/health` | GET | Health check (SQLite + MongoDB + Groq status, uptime) |
@@ -187,7 +189,7 @@ pytest tri9t/app/tests/ -v
 | `/documents/{doc_id}/tree` | GET | Get hierarchical node tree |
 | `/nodes/{node_id}` | GET | Get single node with children |
 | `/versions/{version_id}/tree` | GET | Get tree for a specific version |
-| `/search` | GET | Full-text search across nodes (paginated) |
+| `/search` | GET | Full-text search across nodes (paginated, filterable by impact) |
 | `/selections/` | POST | Create a version-pinned selection |
 | `/selections/` | GET | List all selections (paginated, sortable) |
 | `/selections/{id}` | GET | Get selection by ID |
@@ -235,6 +237,100 @@ When a generation is retrieved, the system:
    - **PARTIALLY_STALE** — some nodes changed
    - **UNKNOWN** — generation or selection not found
 4. Returns impact level and human-readable recommendation
+
+## Pagination
+
+All list endpoints support pagination via `page` and `limit` query parameters:
+
+```
+GET /documents?page=1&limit=10
+GET /search?query=safety&page=2&limit=5
+GET /selections/?page=1&limit=20
+GET /generation/history?page=1&limit=10
+```
+
+All paginated responses share a consistent format:
+
+```json
+{
+  "items": [...],
+  "page": 1,
+  "limit": 10,
+  "total": 42,
+  "pages": 5
+}
+```
+
+## Sorting
+
+List endpoints support `sort` and `order` query parameters:
+
+```
+GET /documents?sort=title&order=asc
+GET /documents?sort=created_at&order=desc
+GET /selections/?sort=selection_name&order=asc
+GET /search?query=safety&sort=score&order=desc
+```
+
+## Filtering
+
+List endpoints support optional filter parameters:
+
+```
+GET /documents?title=CT200              # Filter by title substring
+GET /search?impact_level=HIGH           # Filter by impact level
+GET /generation/history?stale=true      # Filter by staleness status
+```
+
+Filtering never breaks existing APIs — unsupported filters are silently ignored.
+
+## Request IDs
+
+Every request includes an `X-Request-ID` header:
+
+- If the client sends one, it is echoed back
+- Otherwise, a UUID v4 is generated automatically
+- Request IDs appear in all structured logs for correlation
+
+## Metrics
+
+```
+GET /metrics
+```
+
+Returns aggregate counts of all major resource types:
+
+```json
+{
+  "documents": 42,
+  "versions": 87,
+  "nodes": 1523,
+  "selections": 12,
+  "generations": 36
+}
+```
+
+## Health
+
+```
+GET /health
+```
+
+Returns detailed system status including uptime, service connectivity, and version:
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "uptime_seconds": 3600,
+  "services": {
+    "sqlite": "connected",
+    "mongodb": "connected",
+    "groq": "configured"
+  },
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
 
 ## Duplicate Selection Policy
 

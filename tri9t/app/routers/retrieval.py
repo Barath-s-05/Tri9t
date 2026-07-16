@@ -53,7 +53,7 @@ class SearchResultItem(BaseModel):
 class SearchResponse(BaseModel):
     """Response for the search endpoint."""
 
-    results: list[SearchResultItem] = Field(
+    items: list[SearchResultItem] = Field(
         ...,
         description="Search results ordered by relevance score descending",
     )
@@ -212,7 +212,7 @@ def search_document_nodes(
     page_results = results[start : start + limit]
 
     return SearchResponse(
-        results=page_results,
+        items=page_results,
         total=total,
         page=page,
         limit=limit,
