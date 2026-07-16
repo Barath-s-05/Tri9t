@@ -86,6 +86,10 @@ class SelectionListResponse(BaseModel):
         ...,
         description="List of selections ordered by creation date descending",
     )
+    page: int = Field(..., description="Current page number", examples=[1])
+    limit: int = Field(..., description="Items per page", examples=[20])
+    total: int = Field(..., description="Total number of selections", examples=[12])
+    pages: int = Field(..., description="Total number of pages", examples=[2])
 
 
 class DeleteSelectionResponse(BaseModel):
@@ -246,12 +250,24 @@ def list_selections(
         description="Optional UUID to filter selections by document version",
         examples=["550e8400-e29b-41d4-a716-446655440000"],
     ),
+    page: int = Query(1, ge=1, description="Page number (1-based)", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (1-100)", examples=[20]),
+    sort: str | None = Query(
+        None,
+        description="Field to sort by (created_at, selection_name)",
+        examples=["created_at"],
+    ),
+    order: str = Query("desc", description="Sort order: asc or desc", examples=["desc"]),
     db: Session = Depends(get_db),
 ) -> SelectionListResponse:
     """List selections, optionally filtered by document version.
 
     Args:
         document_version_id: Optional version UUID to filter.
+        page: Page number (1-based).
+        limit: Items per page (1-100).
+        sort: Optional field to sort by.
+        order: Sort direction.
 
     Returns:
         ``SelectionListResponse`` with matching selections.
@@ -259,8 +275,25 @@ def list_selections(
     if document_version_id is not None:
         validate_uuid(document_version_id, "document_version_id")
 
-    selections = get_selections(db, document_version_id=document_version_id)
-    return SelectionListResponse(selections=selections)
+    selections = get_selections(
+        db,
+        document_version_id=document_version_id,
+        sort=sort,
+        order=order,
+    )
+
+    total = len(selections)
+    pages = max(1, (total + limit - 1) // limit)
+    start = (page - 1) * limit
+    page_selections = selections[start : start + limit]
+
+    return SelectionListResponse(
+        selections=page_selections,
+        page=page,
+        limit=limit,
+        total=total,
+        pages=pages,
+    )
 
 
 @router.get(

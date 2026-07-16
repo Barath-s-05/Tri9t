@@ -119,12 +119,16 @@ def create_selection(
 def get_selections(
     db: Session,
     document_version_id: str | None = None,
+    sort: str | None = None,
+    order: str = "desc",
 ) -> list[dict]:
     """Retrieve all selections, optionally filtered by version.
 
     Args:
         db: Active SQLAlchemy session.
         document_version_id: Optional version ID to filter.
+        sort: Optional field to sort by (created_at, selection_name).
+        order: Sort direction — ``asc`` or ``desc`` (default ``desc``).
 
     Returns:
         List of selection dicts.
@@ -132,7 +136,20 @@ def get_selections(
     q = db.query(Selection)
     if document_version_id:
         q = q.filter(Selection.document_version_id == document_version_id)
-    selections = q.order_by(Selection.created_at.desc()).all()
+
+    # Sorting
+    sort_col = Selection.created_at  # default
+    if sort == "selection_name":
+        sort_col = Selection.selection_name
+    elif sort == "created_at":
+        sort_col = Selection.created_at
+
+    if order.lower() == "asc":
+        q = q.order_by(sort_col.asc())
+    else:
+        q = q.order_by(sort_col.desc())
+
+    selections = q.all()
 
     return [
         {

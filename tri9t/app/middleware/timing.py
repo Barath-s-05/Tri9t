@@ -1,11 +1,15 @@
 """Request timing middleware.
 
 Adds an ``X-Process-Time`` header to every response and logs the
-method, path, status code, and elapsed time.
+method, path, status code, and elapsed time with request ID correlation.
 """
+
+from __future__ import annotations
 
 import logging
 import time
+
+from tri9t.app.middleware.request_id import request_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +27,7 @@ class TimingMiddleware:
         start = time.perf_counter()
         method = scope["method"]
         path = scope["path"]
+        rid = request_id_var.get("")
 
         async def send_wrapper(message):  # noqa: ANN001, ANN202
             if message["type"] == "http.response.start":
@@ -35,7 +40,8 @@ class TimingMiddleware:
 
                 status = message["status"]
                 logger.info(
-                    "%s %s %s %.2fms",
+                    "request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
+                    rid,
                     method,
                     path,
                     status,

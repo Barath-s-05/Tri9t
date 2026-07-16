@@ -254,16 +254,31 @@ def get_generation(generation_id: str) -> dict | None:
 def get_generation_history(
     selection_id: str | None = None,
     version_id: str | None = None,
+    stale: bool | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> dict:
-    """Return paginated generation history with optional filters."""
+    """Return paginated generation history with optional filters.
+
+    Args:
+        selection_id: Optional selection UUID to filter.
+        version_id: Optional version UUID to filter.
+        stale: Optional staleness filter — ``True`` for stale only,
+            ``False`` for current only, ``None`` for all.
+        limit: Maximum results per page.
+        offset: Number of results to skip.
+
+    Returns:
+        Dict with ``generations`` list and ``total`` count.
+    """
     try:
         query: dict = {}
         if selection_id:
             query["selection_id"] = selection_id
         if version_id:
             query["version_id"] = version_id
+        if stale is not None:
+            query["is_stale"] = stale
 
         col = get_generations_collection()
         total = col.count_documents(query)
