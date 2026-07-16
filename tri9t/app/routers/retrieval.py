@@ -12,6 +12,7 @@ from tri9t.app.db.database import get_db
 from tri9t.app.schemas.api import (
     ERROR_RESPONSE_INVALID_UUID,
     ErrorResponse,
+    pagination_params,
     validation_error,
     validate_uuid,
 )
@@ -61,6 +62,9 @@ class SearchResponse(BaseModel):
         description="Number of results returned",
         examples=[5],
     )
+    page: int = Field(..., description="Current page number", examples=[1])
+    limit: int = Field(..., description="Items per page", examples=[20])
+    pages: int = Field(..., description="Total number of pages", examples=[1])
 
 
 class EmptyQueryError(BaseModel):
@@ -138,6 +142,14 @@ def search_document_nodes(
         "(LOW, MEDIUM, HIGH, CRITICAL)",
         examples=["HIGH"],
     ),
+    page: int = Query(1, ge=1, description="Page number (1-based)", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (1-100)", examples=[20]),
+    sort: str | None = Query(
+        None,
+        description="Field to sort by (score, heading, created_at)",
+        examples=["score"],
+    ),
+    order: str = Query("desc", description="Sort order: asc or desc", examples=["desc"]),
     db: Session = Depends(get_db),
 ) -> SearchResponse:
     """Search across document nodes.
@@ -194,4 +206,15 @@ def search_document_nodes(
         document_id,
     )
 
-    return SearchResponse(results=results, total=len(results))
+    total = len(results)
+    pages = max(1, (total + limit - 1) // limit)
+    start = (page - 1) * limit
+    page_results = results[start : start + limit]
+
+    return SearchResponse(
+        results=page_results,
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
+    )

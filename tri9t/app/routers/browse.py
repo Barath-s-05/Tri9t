@@ -13,6 +13,7 @@ from tri9t.app.schemas.api import (
     ERROR_RESPONSE_INVALID_UUID,
     ERROR_RESPONSE_NOT_FOUND,
     ErrorResponse,
+    PaginationMeta,
     not_found_error,
     validate_uuid,
 )
@@ -50,6 +51,10 @@ class DocumentListResponse(BaseModel):
         ...,
         description="List of document summaries, ordered by creation date descending",
     )
+    page: int = Field(..., description="Current page number", examples=[1])
+    limit: int = Field(..., description="Items per page", examples=[20])
+    total: int = Field(..., description="Total number of documents", examples=[42])
+    pages: int = Field(..., description="Total number of pages", examples=[3])
 
 
 class DocumentDetailResponse(BaseModel):
@@ -160,23 +165,45 @@ _DOCS_404_VERSION: dict[int, dict] = {
     response_model=DocumentListResponse,
     summary="List all documents",
     description=(
-        "Returns a list of all uploaded documents, ordered by creation "
-        "date descending. Each entry includes the document ID, filename, "
-        "title, and number of versions."
+        "Returns a paginated list of all uploaded documents. "
+        "Supports sorting by ``sort`` param and filtering by ``title``."
     ),
-    response_description="List of document summaries.",
+    response_description="Paginated list of document summaries.",
 )
 def browse_documents(
+    page: int = Query(1, ge=1, description="Page number (1-based)", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (1-100)", examples=[20]),
+    sort: str | None = Query(
+        None,
+        description="Field to sort by (created_at, title, filename)",
+        examples=["created_at"],
+    ),
+    order: str = Query("desc", description="Sort order: asc or desc", examples=["desc"]),
+    title: str | None = Query(None, description="Filter by document title (substring match)", examples=["CT200"]),
     db: Session = Depends(get_db),
 ) -> DocumentListResponse:
-    """List all documents with version counts.
+    """List all documents with pagination, sorting, and filtering.
 
     Returns:
-        ``DocumentListResponse`` containing all documents.
+        ``DocumentListResponse`` containing paginated documents.
     """
-    docs = list_documents(db)
-    logger.debug("Listed %d documents", len(docs))
-    return DocumentListResponse(documents=docs)
+    from tri9t.app.services.browse_service import list_documents
+
+    docs = list_documents(db, sort=sort, order=order, title=title)
+
+    total = len(docs)
+    pages = max(1, (total + limit - 1) // limit)
+    start = (page - 1) * limit
+    page_docs = docs[start : start + limit]
+
+    logger.debug("Listed %d documents (page %d/%d)", len(page_docs), page, pages)
+    return DocumentListResponse(
+        documents=page_docs,
+        page=page,
+        limit=limit,
+        total=total,
+        pages=pages,
+    )
 
 
 @router.get(

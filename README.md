@@ -82,8 +82,12 @@ tri9t/
       generation.py              # GenerationRecord
     schemas/
       parser.py                  # Pydantic schemas for parsed content
+    middleware/
+      timing.py                    # Request timing (X-Process-Time header, structured logs)
+      request_id.py                # X-Request-ID propagation/generation
     routers/
-      health.py                  # GET /health
+      health.py                    # GET /health
+      metrics.py                   # GET /metrics
       ingest.py                  # POST /ingest/documents
       browse.py                  # GET /browse/documents, /browse/tree/{id}, /browse/node/{id}
       selection.py               # POST/GET/DELETE /selections/
@@ -113,13 +117,15 @@ tri9t/
       parser_report.py           # Parser warning aggregation
       parser_validator.py        # Parser output validation
     tests/
-      test_health.py             # Health endpoint tests
-      test_api.py                # Browse, search, selection API tests
-      test_parser.py             # PDF parser tests
+      test_health.py               # Health endpoint tests
+      test_api.py                  # Browse, search, selection API tests
+      test_parser.py               # PDF parser tests
       test_browse_search_selection.py  # Browse, search, selection service tests
-      test_versioning.py         # Versioning, diff, impact analysis tests
-      test_generation.py         # Generation pipeline tests
-      test_staleness.py          # Staleness detection tests
+      test_versioning.py           # Versioning, diff, impact analysis tests
+      test_generation.py           # Generation pipeline tests
+      test_staleness.py            # Staleness detection tests
+      test_middleware.py           # Timing middleware tests
+      test_production_readiness.py # Pagination, metrics, request ID tests
   data/                          # Runtime data directory
   requirements.txt
   .env.example
@@ -167,26 +173,27 @@ Interactive docs at `http://127.0.0.1:8000/docs`.
 pytest tri9t/app/tests/ -v
 ```
 
-**182 tests** across 7 test files, all passing.
+**248 tests** across 9 test files, all passing.
 
 ## API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/health` | GET | Health check (SQLite + MongoDB status) |
+| `/health` | GET | Health check (SQLite + MongoDB + Groq status, uptime) |
+| `/metrics` | GET | System resource counts (documents, versions, nodes, selections, generations) |
 | `/ingest/documents` | POST | Upload and parse a PDF document |
-| `/browse/documents` | GET | List all documents |
-| `/browse/documents/{id}` | GET | Get document with versions |
-| `/browse/documents/{doc_id}/tree` | GET | Get hierarchical node tree |
-| `/browse/nodes/{node_id}` | GET | Get single node with children |
-| `/browse/versions/{version_id}/tree` | GET | Get tree for a specific version |
-| `/retrieval/search` | GET | Full-text search across nodes |
+| `/documents` | GET | List all documents (paginated, sortable, filterable) |
+| `/documents/{id}` | GET | Get document with versions |
+| `/documents/{doc_id}/tree` | GET | Get hierarchical node tree |
+| `/nodes/{node_id}` | GET | Get single node with children |
+| `/versions/{version_id}/tree` | GET | Get tree for a specific version |
+| `/search` | GET | Full-text search across nodes (paginated) |
 | `/selections/` | POST | Create a version-pinned selection |
-| `/selections/` | GET | List all selections |
+| `/selections/` | GET | List all selections (paginated, sortable) |
 | `/selections/{id}` | GET | Get selection by ID |
 | `/selections/{id}` | DELETE | Delete a selection |
 | `/generate` | POST | Generate QA test cases from selection |
-| `/generation/history` | GET | Paginated generation history |
+| `/generation/history` | GET | Paginated generation history (filterable by staleness) |
 | `/generation/{id}` | GET | Retrieve generation with staleness info |
 | `/node/{node_id}/generations` | GET | All generations that included a node |
 | `/selection/{id}/generations` | GET | All generations for a selection |
@@ -341,4 +348,4 @@ Get an API key at https://console.groq.com
 - **MongoDB** (pymongo) — generation artifacts and audit logs
 - **Groq API** — LLM inference (llama-3.3-70b-versatile)
 - **PyMuPDF** — PDF parsing
-- **Pytest** — testing (182 tests)
+- **Pytest** — testing (248 tests)

@@ -247,3 +247,49 @@ ERROR_RESPONSE_SERVICE_UNAVAILABLE: dict[int, dict] = {
         },
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Pagination helpers
+# ---------------------------------------------------------------------------
+
+class PaginationMeta(BaseModel):
+    """Pagination metadata returned with every paginated list response."""
+
+    page: int = Field(..., description="Current page number (1-based)", examples=[1], ge=1)
+    limit: int = Field(..., description="Items per page", examples=[20], ge=1)
+    total: int = Field(..., description="Total number of items matching the query", examples=[145], ge=0)
+    pages: int = Field(..., description="Total number of pages", examples=[8], ge=0)
+
+
+def paginate(items: list, page: int, limit: int) -> tuple[list, PaginationMeta]:
+    """Slice a list and return items + pagination metadata.
+
+    Args:
+        items: Full list of items.
+        page: 1-based page number.
+        limit: Items per page.
+
+    Returns:
+        Tuple of (sliced items, PaginationMeta).
+    """
+    total = len(items)
+    pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
+    start = (page - 1) * limit
+    end = start + limit
+    return items[start:end], PaginationMeta(
+        page=page,
+        limit=limit,
+        total=total,
+        pages=pages,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shared pagination query parameter descriptions
+# ---------------------------------------------------------------------------
+
+pagination_params = {
+    "page": (1, "Page number (1-based)"),
+    "limit": (20, "Items per page (1-100)"),
+}

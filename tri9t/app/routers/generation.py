@@ -122,6 +122,9 @@ class GenerationHistoryResponse(BaseModel):
         description="Total number of matching generations",
         examples=[42],
     )
+    page: int = Field(..., description="Current page number", examples=[1])
+    limit: int = Field(..., description="Items per page", examples=[20])
+    pages: int = Field(..., description="Total number of pages", examples=[3])
 
 
 class GenerationDetailResponse(BaseModel):
@@ -287,27 +290,22 @@ async def history(
         description="Filter by document version UUID",
         examples=["550e8400-e29b-41d4-a716-446655440000"],
     ),
-    limit: int = Query(
-        20,
-        ge=1,
-        le=100,
-        description="Maximum number of results to return (1-100)",
-        examples=[20],
+    stale: bool | None = Query(
+        None,
+        description="Filter by staleness status (true = stale only, false = current only)",
+        examples=[False],
     ),
-    offset: int = Query(
-        0,
-        ge=0,
-        description="Number of results to skip for pagination",
-        examples=[0],
-    ),
+    page: int = Query(1, ge=1, description="Page number (1-based)", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (1-100)", examples=[20]),
 ) -> GenerationHistoryResponse:
     """Return paginated generation history.
 
     Args:
         selection_id: Optional selection UUID to filter.
         version_id: Optional version UUID to filter.
+        stale: Optional staleness filter.
+        page: Page number (1-based).
         limit: Maximum results per page (1-100).
-        offset: Pagination offset.
 
     Returns:
         ``GenerationHistoryResponse`` with generations and total count.
@@ -317,13 +315,25 @@ async def history(
     if version_id is not None:
         validate_uuid(version_id, "version_id")
 
+    offset = (page - 1) * limit
     result = get_generation_history(
         selection_id=selection_id,
         version_id=version_id,
+        stale=stale,
         limit=limit,
         offset=offset,
     )
-    return GenerationHistoryResponse(**result)
+
+    total = result["total"]
+    pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
+
+    return GenerationHistoryResponse(
+        generations=result["generations"],
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
+    )
 
 
 @router.get(
@@ -384,26 +394,15 @@ async def retrieve_generation(
 )
 async def node_generations(
     node_id: str,
-    limit: int = Query(
-        20,
-        ge=1,
-        le=100,
-        description="Maximum number of results (1-100)",
-        examples=[20],
-    ),
-    offset: int = Query(
-        0,
-        ge=0,
-        description="Pagination offset",
-        examples=[0],
-    ),
+    page: int = Query(1, ge=1, description="Page number (1-based)", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (1-100)", examples=[20]),
 ) -> GenerationHistoryResponse:
     """Return all generations that included a specific node.
 
     Args:
         node_id: UUID of the node.
+        page: Page number (1-based).
         limit: Maximum results per page.
-        offset: Pagination offset.
 
     Returns:
         ``GenerationHistoryResponse`` with matching generations.
@@ -413,12 +412,23 @@ async def node_generations(
     """
     validate_uuid(node_id, "node_id")
 
+    offset = (page - 1) * limit
     result = get_generations_for_node(
         node_id=node_id,
         limit=limit,
         offset=offset,
     )
-    return GenerationHistoryResponse(**result)
+
+    total = result["total"]
+    pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
+
+    return GenerationHistoryResponse(
+        generations=result["generations"],
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
+    )
 
 
 @router.get(
@@ -436,26 +446,15 @@ async def node_generations(
 )
 async def selection_generations(
     selection_id: str,
-    limit: int = Query(
-        20,
-        ge=1,
-        le=100,
-        description="Maximum number of results (1-100)",
-        examples=[20],
-    ),
-    offset: int = Query(
-        0,
-        ge=0,
-        description="Pagination offset",
-        examples=[0],
-    ),
+    page: int = Query(1, ge=1, description="Page number (1-based)", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (1-100)", examples=[20]),
 ) -> GenerationHistoryResponse:
     """Return all generations for a specific selection.
 
     Args:
         selection_id: UUID of the selection.
+        page: Page number (1-based).
         limit: Maximum results per page.
-        offset: Pagination offset.
 
     Returns:
         ``GenerationHistoryResponse`` with matching generations.
@@ -465,9 +464,20 @@ async def selection_generations(
     """
     validate_uuid(selection_id, "selection_id")
 
+    offset = (page - 1) * limit
     result = get_generations_for_selection(
         selection_id=selection_id,
         limit=limit,
         offset=offset,
     )
-    return GenerationHistoryResponse(**result)
+
+    total = result["total"]
+    pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
+
+    return GenerationHistoryResponse(
+        generations=result["generations"],
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
+    )

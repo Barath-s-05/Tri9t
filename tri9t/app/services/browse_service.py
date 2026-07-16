@@ -44,16 +44,43 @@ def _node_to_dict(node: Node, children: list[dict] | None = None) -> dict:
     }
 
 
-def list_documents(db: Session) -> list[dict]:
+def list_documents(
+    db: Session,
+    sort: str | None = None,
+    order: str = "desc",
+    title: str | None = None,
+) -> list[dict]:
     """Return all documents with version counts.
 
     Args:
         db: Active SQLAlchemy session.
+        sort: Optional field to sort by (created_at, title, filename).
+        order: Sort direction — ``asc`` or ``desc`` (default ``desc``).
+        title: Optional substring filter on document title.
 
     Returns:
         List of document summary dicts.
     """
-    documents = db.query(Document).order_by(Document.created_at.desc()).all()
+    q = db.query(Document)
+
+    if title:
+        q = q.filter(Document.title.ilike(f"%{title}%"))
+
+    # Sorting
+    sort_col = Document.created_at  # default
+    if sort == "title":
+        sort_col = Document.title
+    elif sort == "filename":
+        sort_col = Document.filename
+    elif sort == "created_at":
+        sort_col = Document.created_at
+
+    if order.lower() == "asc":
+        q = q.order_by(sort_col.asc())
+    else:
+        q = q.order_by(sort_col.desc())
+
+    documents = q.all()
     results: list[dict] = []
     for doc in documents:
         version_count = (
