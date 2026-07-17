@@ -47,7 +47,7 @@ Documents jumping from H1 to H3 (missing H2) produced a flat, broken tree.
 
 ## Parser Design
 
-**Input:** PDF file uploaded via `POST /ingest/documents`
+**Input:** PDF file uploaded via `POST /ingest/document`
 
 **Process:**
 1. PyMuPDF extracts text blocks with page numbers and position data
@@ -61,8 +61,11 @@ Documents jumping from H1 to H3 (missing H2) produced a flat, broken tree.
 - Duplicate headings → warning logged, UUID suffix added
 - Empty headings → warning, heading set to placeholder
 - Missing body text → warning, body set to empty
-- Out-of-order numbering → warning, hierarchy still built
+- Out-of-order numbering → warning, hierarchy still built via page-order
 - Skipped levels (H1 → H3) → warning, virtual root injected
+- Irregular hierarchy (deep nesting mismatches) → warning, best-effort tree built
+
+Every edge case emits a structured parser warning that surfaces in the ingest response's `parser_report` field. The parser never silently degrades — it flags all structural irregularities while still producing a usable tree.
 
 ## Hierarchy Construction
 
@@ -255,6 +258,31 @@ This is not a boolean flag — it's a full semantic diff with field-level granul
 | Missing selection | 404 with clear message |
 | Empty node list | 422 with message explaining no valid nodes |
 | Staleness check with missing generation | Returns `UNKNOWN` status, not error |
+
+## Global Exception Handler
+
+A catch-all exception handler registered on the FastAPI app intercepts any unhandled exception that escapes route-level error handling. It logs the full exception and stack trace server-side for debugging, then returns a sanitized structured JSON response to the client:
+
+```json
+{
+  "error": "InternalServerError",
+  "message": "An unexpected error occurred.",
+  "hint": "Check the logs for details. If this persists, contact support.",
+  "request_id": "..."
+}
+```
+
+No internal details (stack traces, file paths, database errors) are exposed to the caller. The `request_id` from the request ID middleware is included so that client-side reports can be correlated with server logs.
+
+## Future Improvements
+
+These improvements evolve naturally from the current architecture:
+
+- **Embedding-based node matching** — Replace heuristic heading similarity with vector embeddings for semantic matching across document versions. This catches cases where headings change completely but meaning stays the same (e.g., "Battery Runtime" → "Operating Duration").
+- **OCR pipeline for scanned PDFs** — Add a Tesseract or cloud vision pre-processing step to handle image-only PDFs. The current architecture supports this as a drop-in extension to `pdf_parser.py` without changing downstream code.
+- **Async generation jobs** — Move LLM generation to a background task queue so that long-running requests don't block the API. This would add job status tracking and webhook callbacks.
+- **PostgreSQL for concurrent deployments** — Migrate from SQLite to PostgreSQL when the system needs to serve concurrent writers. The service layer abstracts the DB, so this requires only a connection string change and raw SQL fixes.
+- **Authentication and authorization** — Add JWT-based auth with role-based access control to restrict ingestion, selection, and generation endpoints.
 
 ## Tradeoffs
 

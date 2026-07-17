@@ -65,13 +65,13 @@
       "name": "02 - Ingest Document",
       "item": [
         {
-          "name": "POST /ingest/documents",
+          "name": "POST /ingest/document",
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{baseUrl}}/ingest/documents",
+              "raw": "{{baseUrl}}/ingest/document",
               "host": ["{{baseUrl}}"],
-              "path": ["ingest", "documents"]
+              "path": ["ingest", "document"]
             },
             "body": {
               "mode": "formdata",
@@ -199,13 +199,13 @@
       "name": "04 - Search",
       "item": [
         {
-          "name": "GET /retrieval/search",
+          "name": "GET /search",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/retrieval/search?q=safety&version_id={{versionId}}",
+              "raw": "{{baseUrl}}/search?q=safety&version_id={{versionId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["retrieval", "search"],
+              "path": ["search"],
               "query": [
                 {
                   "key": "q",
