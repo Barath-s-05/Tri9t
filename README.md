@@ -19,48 +19,51 @@ This API is designed to:
 ## Architecture
 
 ```
-PDF Upload
-    │
-    ▼
-┌──────────┐
-│  Parser   │  PyMuPDF extracts text, headings, sections
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│ Hierarchy │  Tree builder constructs parent-child nodes
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  SQLite   │  Documents, versions, nodes, selections
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│Versioning │  Node matching across document versions
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│ Selection │  User pins version-specific nodes
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│   Groq   │  LLM generates QA test cases (3–5)
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  MongoDB  │  Generations, audit logs stored here
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│ Retrieval │  Staleness detection on every fetch
-└──────────┘
+PDF
+ │
+ ▼
+PyMuPDF Parser
+ │
+ ▼
+Hierarchy Builder
+ │
+ ▼
+SQLite
+ │
+ ▼
+Versioning
+ │
+ ▼
+Selections
+ │
+ ▼
+Prompt Builder
+ │
+ ▼
+Groq
+ │
+ ▼
+MongoDB
+ │
+ ▼
+Generation Retrieval
+ │
+ ▼
+Staleness Detection
 ```
+
+**Error handling:** The global exception handler logs unexpected exceptions server-side with full stack traces while returning sanitized structured errors (`{error, message, hint}`) to clients. No internal details leak to the caller.
+
+## Parser Reporting
+
+Every ingestion returns a structured parser report with:
+
+- Pages processed, nodes created, headings/tables/lists detected
+- Processing time in milliseconds
+- Parser warnings for structural irregularities: duplicate headings, out-of-order numbering, skipped heading levels, empty body text
+- Table detection via block position analysis
+
+The parser handles edge cases robustly: duplicate headings get UUID suffixes with warnings, skipped levels (e.g., H1 → H3) trigger virtual root injection, and out-of-order section numbers are flagged while the hierarchy is still built correctly.
 
 ## Folder Structure
 
@@ -88,12 +91,12 @@ tri9t/
     routers/
       health.py                    # GET /health
       metrics.py                   # GET /metrics
-      ingest.py                  # POST /ingest/documents
-      browse.py                  # GET /browse/documents, /browse/tree/{id}, /browse/node/{id}
+      ingest.py                  # POST /ingest/document
+      browse.py                  # GET /documents, /documents/{id}/tree, /nodes/{id}
       selection.py               # POST/GET/DELETE /selections/
       generation.py              # POST /generate, GET /generation/{id}, etc.
-      retrieval.py               # GET /retrieval/search
-      versions.py                # GET /versions/{doc_id}
+      retrieval.py               # GET /search
+      versions.py                # POST /versions/ingest, GET /versions/document/{id}/versions
     services/
       pdf_parser.py              # PDF text extraction and heading detection
       tree_builder.py            # Hierarchical node tree construction
@@ -182,8 +185,8 @@ All paginated list endpoints return `{items, page, limit, total, pages}`.
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/health` | GET | Health check (SQLite + MongoDB + Groq status, uptime) |
-| `/metrics` | GET | System resource counts (documents, versions, nodes, selections, generations) |
-| `/ingest/documents` | POST | Upload and parse a PDF document |
+| `/metrics` | GET | System resource counts (SQLite + MongoDB generation count) |
+| `/ingest/document` | POST | Upload and parse a PDF document |
 | `/documents` | GET | List all documents (paginated, sortable, filterable) |
 | `/documents/{id}` | GET | Get document with versions |
 | `/documents/{doc_id}/tree` | GET | Get hierarchical node tree |
@@ -298,7 +301,7 @@ Every request includes an `X-Request-ID` header:
 GET /metrics
 ```
 
-Returns aggregate counts of all major resource types:
+Returns aggregate counts of all major resource types. Document, version, node, and selection counts come from SQLite. Generation count comes from MongoDB (returns 0 if MongoDB is unavailable).
 
 ```json
 {
